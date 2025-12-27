@@ -1,0 +1,313 @@
+{
+  "last_node_id": 21,
+  "last_link_id": 32,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [50, 100],
+      "size": [315, 98],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [1], "slot_index": 0},
+        {"name": "CLIP", "type": "CLIP", "links": [2, 3], "slot_index": 1},
+        {"name": "VAE", "type": "VAE", "links": [4], "slot_index": 2}
+      ],
+      "properties": {"Node name for S&R": "CheckpointLoaderSimple"},
+      "widgets_values": ["juggernautXL_v9.safetensors"]
+    },
+    {
+      "id": 2,
+      "type": "CLIPTextEncode",
+      "pos": [450, 50],
+      "size": [400, 150],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {"name": "clip", "type": "CLIP", "link": 2}
+      ],
+      "outputs": [
+        {"name": "CONDITIONING", "type": "CONDITIONING", "links": [5], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "CLIPTextEncode"},
+      "widgets_values": ["A professional e-commerce product photo of the same object. Perfect studio lighting, clean white background, soft shadows, center composition, 85mm camera lens, ultra sharp, realistic, high detail, commercial photography"]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [450, 250],
+      "size": [400, 150],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {"name": "clip", "type": "CLIP", "link": 3}
+      ],
+      "outputs": [
+        {"name": "CONDITIONING", "type": "CONDITIONING", "links": [6], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "CLIPTextEncode"},
+      "widgets_values": ["blurry, low quality, distorted, deformed, ugly, bad anatomy, watermark, text, logo, out of frame, cropped, grainy, noise"]
+    },
+    {
+      "id": 4,
+      "type": "LoadImage",
+      "pos": [50, 300],
+      "size": [315, 314],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [25], "slot_index": 0},
+        {"name": "MASK", "type": "MASK", "links": null}
+      ],
+      "properties": {"Node name for S&R": "LoadImage"},
+      "widgets_values": ["xfinity-page-16x9-xm.jpg", "image"]
+    },
+    {
+      "id": 15,
+      "type": "Image Remove Background (Alpha)",
+      "pos": [400, 300],
+      "size": [315, 106],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {"name": "images", "type": "IMAGE", "link": 25}
+      ],
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [7, 20], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "Image Remove Background (Alpha)"},
+      "widgets_values": ["background", 127, 2]
+    },
+    {
+      "id": 5,
+      "type": "IPAdapterModelLoader",
+      "pos": [50, 650],
+      "size": [315, 58],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {"name": "IPADAPTER", "type": "IPADAPTER", "links": [8], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "IPAdapterModelLoader"},
+      "widgets_values": ["ip-adapter-plus_sdxl_vit-h.safetensors"]
+    },
+    {
+      "id": 6,
+      "type": "CLIPVisionLoader",
+      "pos": [50, 750],
+      "size": [315, 58],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {"name": "CLIP_VISION", "type": "CLIP_VISION", "links": [9], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "CLIPVisionLoader"},
+      "widgets_values": ["CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"]
+    },
+    {
+      "id": 7,
+      "type": "IPAdapterAdvanced",
+      "pos": [450, 500],
+      "size": [315, 350],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 1},
+        {"name": "ipadapter", "type": "IPADAPTER", "link": 8},
+        {"name": "image", "type": "IMAGE", "link": 7},
+        {"name": "clip_vision", "type": "CLIP_VISION", "link": 9},
+        {"name": "attn_mask", "type": "MASK", "link": null},
+        {"name": "image_negative", "type": "IMAGE", "link": null}
+      ],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [10], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "IPAdapterAdvanced"},
+      "widgets_values": [0.55, "linear", "concat", 0, 1, "V only", false]
+    },
+    {
+      "id": 12,
+      "type": "ControlNetLoader",
+      "pos": [50, 870],
+      "size": [315, 58],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "outputs": [
+        {"name": "CONTROL_NET", "type": "CONTROL_NET", "links": [21], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "ControlNetLoader"},
+      "widgets_values": ["controlnet-canny-sdxl.safetensors"]
+    },
+    {
+      "id": 13,
+      "type": "CannyEdgePreprocessor",
+      "pos": [450, 870],
+      "size": [315, 106],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {"name": "image", "type": "IMAGE", "link": 20}
+      ],
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [22], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "CannyEdgePreprocessor"},
+      "widgets_values": [100, 200, 512]
+    },
+    {
+      "id": 14,
+      "type": "ControlNetApplyAdvanced",
+      "pos": [850, 500],
+      "size": [315, 186],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {"name": "positive", "type": "CONDITIONING", "link": 5},
+        {"name": "negative", "type": "CONDITIONING", "link": 6},
+        {"name": "control_net", "type": "CONTROL_NET", "link": 21},
+        {"name": "image", "type": "IMAGE", "link": 22},
+        {"name": "vae", "type": "VAE", "link": null}
+      ],
+      "outputs": [
+        {"name": "positive", "type": "CONDITIONING", "links": [23], "slot_index": 0},
+        {"name": "negative", "type": "CONDITIONING", "links": [24], "slot_index": 1}
+      ],
+      "properties": {"Node name for S&R": "ControlNetApplyAdvanced"},
+      "widgets_values": [0.35, 0, 1]
+    },
+    {
+      "id": 8,
+      "type": "EmptyLatentImage",
+      "pos": [1200, 400],
+      "size": [315, 106],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "outputs": [
+        {"name": "LATENT", "type": "LATENT", "links": [11], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "EmptyLatentImage"},
+      "widgets_values": [768, 768, 1]
+    },
+    {
+      "id": 9,
+      "type": "KSampler",
+      "pos": [1200, 100],
+      "size": [315, 262],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 10},
+        {"name": "positive", "type": "CONDITIONING", "link": 23},
+        {"name": "negative", "type": "CONDITIONING", "link": 24},
+        {"name": "latent_image", "type": "LATENT", "link": 11}
+      ],
+      "outputs": [
+        {"name": "LATENT", "type": "LATENT", "links": [12], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "KSampler"},
+      "widgets_values": [42, "fixed", 25, 8.5, "dpmpp_2m", "karras", 1]
+    },
+    {
+      "id": 10,
+      "type": "VAEDecode",
+      "pos": [1600, 100],
+      "size": [210, 46],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {"name": "samples", "type": "LATENT", "link": 12},
+        {"name": "vae", "type": "VAE", "link": 4}
+      ],
+      "outputs": [
+        {"name": "IMAGE", "type": "IMAGE", "links": [13], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "VAEDecode"}
+    },
+    {
+      "id": 11,
+      "type": "SaveImage",
+      "pos": [1600, 200],
+      "size": [400, 400],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {"name": "images", "type": "IMAGE", "link": 13}
+      ],
+      "properties": {"Node name for S&R": "SaveImage"},
+      "widgets_values": ["product_photo_controlnet"]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 7, 0, "MODEL"],
+    [2, 1, 1, 2, 0, "CLIP"],
+    [3, 1, 1, 3, 0, "CLIP"],
+    [4, 1, 2, 10, 1, "VAE"],
+    [5, 2, 0, 14, 0, "CONDITIONING"],
+    [6, 3, 0, 14, 1, "CONDITIONING"],
+    [7, 15, 0, 7, 2, "IMAGE"],
+    [8, 5, 0, 7, 1, "IPADAPTER"],
+    [9, 6, 0, 7, 3, "CLIP_VISION"],
+    [10, 7, 0, 9, 0, "MODEL"],
+    [11, 8, 0, 9, 3, "LATENT"],
+    [12, 9, 0, 10, 0, "LATENT"],
+    [13, 10, 0, 11, 0, "IMAGE"],
+    [25, 4, 0, 15, 0, "IMAGE"],
+    [20, 15, 0, 13, 0, "IMAGE"],
+    [21, 12, 0, 14, 2, "CONTROL_NET"],
+    [22, 13, 0, 14, 3, "IMAGE"],
+    [23, 14, 0, 9, 1, "CONDITIONING"],
+    [24, 14, 1, 9, 2, "CONDITIONING"]
+  ],
+  "groups": [
+    {
+      "title": "Load Models",
+      "bounding": [40, 50, 340, 900],
+      "color": "#3f789e"
+    },
+    {
+      "title": "Prompts",
+      "bounding": [440, 30, 420, 390],
+      "color": "#8A8"
+    },
+    {
+      "title": "IP-Adapter & ControlNet",
+      "bounding": [440, 440, 740, 600],
+      "color": "#b58b00"
+    },
+    {
+      "title": "Generation",
+      "bounding": [1190, 50, 340, 480],
+      "color": "#a1309b"
+    },
+    {
+      "title": "Output",
+      "bounding": [1590, 50, 420, 570],
+      "color": "#2a363b"
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4
+}
+
