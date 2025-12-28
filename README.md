@@ -267,13 +267,65 @@ See [`user/default/workflows/README_PRODUCT_PHOTOGRAPHY.md`](user/default/workfl
 3. Check ComfyUI logs for import errors
 4. Reinstall missing custom nodes via ComfyUI-Manager
 
+## 🌐 HuggingFace Spaces Deployment
+
+Deploy this application to HuggingFace Spaces for easy web access!
+
+### Quick Deploy
+
+1. **Create a HuggingFace Space**
+   - Go to [HuggingFace Spaces](https://huggingface.co/spaces)
+   - Create new Space with **Gradio** SDK
+   - Connect your GitHub repository
+
+2. **Configure Space**
+   - Set hardware to **GPU T4** (recommended) or **CPU**
+   - Add environment variables if needed:
+     - `COMFYUI_SERVER`: ComfyUI server address (if using external server)
+
+3. **Deploy**
+   - Push to your repository
+   - HuggingFace Spaces will automatically build and deploy
+
+### Files for Deployment
+
+The following files are included for HuggingFace Spaces:
+- `app.py` - Main Gradio application
+- `requirements.txt` - Python dependencies
+- `workflows/basic.json` - Basic workflow
+- `workflows/advanced.json` - Advanced workflow
+- `workflow_loader.py` - Workflow management
+- `comfyui_client.py` - ComfyUI API client
+- `model_loader.py` - HuggingFace model loader
+
+### Model Loading
+
+Models are automatically downloaded from HuggingFace on first use:
+- **Juggernaut XL v9** - Base checkpoint
+- **IP-Adapter Plus SDXL** - Identity preservation
+- **CLIP Vision ViT-H-14** - Image encoding
+- **ControlNet Canny SDXL** - Layout control (advanced workflow)
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`README_HF_SPACES.md`](README_HF_SPACES.md) for detailed deployment instructions.
+
 ## 📁 Project Structure
 
 ```
 xfinitymarketgenerator/
 ├── README.md                                    # This file
+├── DEPLOYMENT.md                                # Deployment guide
+├── README_HF_SPACES.md                          # HuggingFace Spaces guide
+├── app.py                                       # Gradio web app
+├── requirements.txt                             # Python dependencies
+├── workflow_loader.py                           # Workflow management
+├── comfyui_client.py                            # ComfyUI API client
+├── model_loader.py                              # HuggingFace model loader
+├── test_setup.py                                # Setup verification script
 ├── .gitignore                                   # Git ignore rules
 ├── LICENSE                                      # MIT License
+├── workflows/
+│   ├── basic.json                               # Basic workflow
+│   └── advanced.json                            # Advanced workflow
 └── user/
     └── default/
         └── workflows/

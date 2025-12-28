@@ -1,45 +1,20 @@
-# ComfyUI Git Ignore
-
-# Models (too large for git)
-models/
-*.safetensors
-*.ckpt
-*.pt
-*.pth
-
-# Output files
-output/
-*.png
-*.jpg
-*.jpeg
-*.webp
-
-# Input files
-input/
-*.png
-*.jpg
-*.jpeg
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-.venv/
+env/
 venv/
 ENV/
-env/
+.venv
 
-# ComfyUI specific
-user/comfyui*.log
-user/__manager/cache/
-user/__manager/snapshots/
+# ComfyUI
+models/
+input/
+output/
 temp/
-
-# OS
-.DS_Store
-Thumbs.db
+*.log
 
 # IDE
 .vscode/
@@ -47,8 +22,13 @@ Thumbs.db
 *.swp
 *.swo
 
-# Keep workflows and documentation
-!user/default/workflows/
-!README*.md
-!*.md
+# OS
+.DS_Store
+Thumbs.db
 
+# Gradio
+flagged/
+
+# Temporary files
+*.tmp
+*.bak
