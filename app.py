@@ -4,13 +4,26 @@ Hosted on HuggingFace Spaces
 """
 import gradio as gr
 import os
-import tempfile
+import sys
+import time
+import subprocess
+import threading
 import uuid
 from PIL import Image
 import json
+
+# Add current directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from workflow_loader import WorkflowLoader
 from comfyui_client import ComfyUIClient
 from model_loader import ModelLoader
+
+# Configuration from environment
+COMFYUI_SERVER = os.getenv("COMFYUI_SERVER", "127.0.0.1:8188")
+COMFYUI_INPUT_DIR = os.getenv("COMFYUI_INPUT_DIR", "input")
+COMFYUI_OUTPUT_DIR = os.getenv("COMFYUI_OUTPUT_DIR", "output")
+GRADIO_PORT = int(os.getenv("GRADIO_PORT", "7860"))
 
 # Initialize components
 workflow_loader = WorkflowLoader(workflows_dir="workflows")
@@ -30,19 +43,33 @@ EXAMPLE_PROMPTS = [
 ]
 
 
-def initialize_comfyui():
-    """Initialize ComfyUI client connection"""
+def check_comfyui_status():
+    """Check if ComfyUI is running and return status"""
     global comfyui_client
     
-    # Try to connect to ComfyUI
-    # On HuggingFace Spaces, ComfyUI might run on a different port or need to be started
-    server_address = os.getenv("COMFYUI_SERVER", "127.0.0.1:8000")
-    comfyui_client = ComfyUIClient(server_address=server_address)
+    if comfyui_client is None:
+        comfyui_client = ComfyUIClient(server_address=COMFYUI_SERVER)
     
     if comfyui_client.is_server_running():
-        return "✅ Connected to ComfyUI"
+        return True, "✅ ComfyUI connected"
     else:
-        return "⚠️ ComfyUI server not running. Please ensure ComfyUI is started."
+        return False, "⏳ Waiting for ComfyUI..."
+
+
+def initialize_comfyui():
+    """Initialize ComfyUI client connection with retry"""
+    global comfyui_client
+    
+    max_retries = 30
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        is_running, status = check_comfyui_status()
+        if is_running:
+            return status
+        time.sleep(retry_delay)
+    
+    return "⚠️ ComfyUI server not responding. Please check logs."
 
 
 def ensure_models(workflow_type: str):
@@ -65,7 +92,7 @@ def ensure_models(workflow_type: str):
         model_loader.ensure_models(model_keys)
         return "✅ Models ready"
     except Exception as e:
-        return f"❌ Error loading models: {str(e)}"
+        return f"⚠️ Model loading: {str(e)}"
 
 
 def generate_image(
@@ -96,36 +123,54 @@ def generate_image(
     Returns:
         Tuple of (generated_image, status_message)
     """
+    global comfyui_client
+    
     try:
-        progress(0.1, desc="Initializing...")
+        if image is None:
+            return None, "❌ Please upload a product image first."
+        
+        progress(0.05, desc="Checking connection...")
         
         # Check ComfyUI connection
-        if not comfyui_client or not comfyui_client.is_server_running():
-            return None, "❌ ComfyUI server is not running. Please start ComfyUI first."
+        is_running, status = check_comfyui_status()
+        if not is_running:
+            return None, "❌ ComfyUI server is not running. Please wait for startup."
         
-        progress(0.2, desc="Loading workflow...")
+        progress(0.1, desc="Loading workflow...")
         
         # Load workflow
         workflow_file = "basic.json" if workflow_type == "basic" else "advanced.json"
         workflow = workflow_loader.load_workflow(workflow_file)
         
-        progress(0.3, desc="Ensuring models are available...")
+        if workflow is None:
+            return None, f"❌ Could not load workflow: {workflow_file}"
         
-        # Ensure models are downloaded
+        progress(0.2, desc="Checking models...")
+        
+        # Check models (non-blocking - they should be pre-downloaded)
         model_status = ensure_models(workflow_type)
-        if "❌" in model_status:
-            return None, model_status
         
-        progress(0.4, desc="Processing image...")
+        progress(0.3, desc="Processing image...")
         
         # Save uploaded image to ComfyUI input directory
-        input_dir = os.getenv("COMFYUI_INPUT_DIR", "input")
-        os.makedirs(input_dir, exist_ok=True)
+        os.makedirs(COMFYUI_INPUT_DIR, exist_ok=True)
         
         # Generate unique filename
         image_filename = f"product_{uuid.uuid4().hex[:8]}.png"
-        image_path = os.path.join(input_dir, image_filename)
-        image.save(image_path)
+        image_path = os.path.join(COMFYUI_INPUT_DIR, image_filename)
+        
+        # Ensure image is in RGB mode
+        if image.mode == 'RGBA':
+            # Create white background
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[3])
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        image.save(image_path, 'PNG')
+        
+        progress(0.4, desc="Configuring workflow...")
         
         # Update workflow with user inputs
         workflow = workflow_loader.update_image(workflow, image_filename)
@@ -147,45 +192,86 @@ def generate_image(
         
         workflow = workflow_loader.update_settings(workflow, **update_kwargs)
         
-        progress(0.5, desc="Converting workflow to API format...")
+        progress(0.5, desc="Preparing generation...")
         
         # Convert to API format
         api_workflow = workflow_loader.workflow_to_api_format(workflow)
         
-        progress(0.6, desc="Queueing generation...")
+        progress(0.6, desc="Generating image...")
         
-        # Generate image
+        # Generate image with progress updates
+        def progress_callback(value, message):
+            progress(0.6 + value * 0.35, desc=message)
+        
         generated_image = comfyui_client.generate_image(
             api_workflow,
             prompt,
-            DEFAULT_NEGATIVE_PROMPT
+            DEFAULT_NEGATIVE_PROMPT,
+            progress_callback=progress_callback
         )
         
-        progress(1.0, desc="Complete!")
+        progress(0.95, desc="Finalizing...")
         
-        # Cleanup input image (optional - keep for debugging)
+        # Cleanup input image
         try:
             if os.path.exists(image_path):
                 os.unlink(image_path)
         except:
             pass
         
-        return generated_image, "✅ Image generated successfully!"
+        progress(1.0, desc="Complete!")
+        
+        if generated_image:
+            return generated_image, "✅ Image generated successfully!"
+        else:
+            return None, "❌ Generation failed. Check ComfyUI logs for details."
         
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Generation error: {error_details}")
         return None, f"❌ Error: {str(e)}"
 
 
+def get_status():
+    """Get current system status"""
+    is_running, comfyui_status = check_comfyui_status()
+    
+    status_lines = [
+        f"**ComfyUI**: {comfyui_status}",
+        f"**Server**: {COMFYUI_SERVER}",
+    ]
+    
+    return "\n".join(status_lines)
+
+
+# Custom CSS for better appearance
+custom_css = """
+.gradio-container {
+    max-width: 1200px !important;
+}
+.status-box {
+    padding: 10px;
+    border-radius: 8px;
+    background: #f0f0f0;
+}
+"""
+
 # Create Gradio interface
-with gr.Blocks(title="Product Photography Generator", theme=gr.themes.Soft()) as app:
+with gr.Blocks(
+    title="Product Photography Generator",
+    theme=gr.themes.Soft(),
+    css=custom_css
+) as app:
     gr.Markdown("""
     # 🎨 Product Photography Generator
     
     Generate professional product photos with AI. Upload your product image, enter a prompt, and get stunning results!
     
     **Features:**
-    - ✨ Automatic background removal
-    - 🔒 Product identity preservation
+    - ✨ Automatic background handling
+    - 🔒 Product identity preservation (IP-Adapter)
+    - 📐 Layout control (ControlNet - Advanced mode)
     - 🎯 Multiple style options
     """)
     
@@ -196,68 +282,81 @@ with gr.Blocks(title="Product Photography Generator", theme=gr.themes.Soft()) as
             input_image = gr.Image(
                 label="Upload Product Image",
                 type="pil",
-                height=300
+                height=300,
+                sources=["upload", "clipboard"]
             )
             
             prompt = gr.Textbox(
                 label="Prompt",
-                placeholder="A professional e-commerce product photo of the same object...",
+                placeholder="Describe the scene you want...",
                 lines=3,
                 value=EXAMPLE_PROMPTS[0]
             )
             
-            workflow_type = gr.Radio(
-                choices=[("Basic (IP-Adapter Only)", "basic"), ("Advanced (IP-Adapter + ControlNet)", "advanced")],
-                value="basic",
-                label="Workflow Type"
+            with gr.Row():
+                workflow_type = gr.Radio(
+                    choices=[
+                        ("Basic (Faster)", "basic"),
+                        ("Advanced (ControlNet)", "advanced")
+                    ],
+                    value="basic",
+                    label="Workflow"
+                )
+            
+            with gr.Accordion("⚙️ Advanced Settings", open=False):
+                ipadapter_weight = gr.Slider(
+                    minimum=0.0,
+                    maximum=1.0,
+                    value=0.9,
+                    step=0.05,
+                    label="IP-Adapter Strength",
+                    info="Higher = more identity preservation"
+                )
+                
+                controlnet_strength = gr.Slider(
+                    minimum=0.0,
+                    maximum=1.0,
+                    value=0.35,
+                    step=0.05,
+                    label="ControlNet Strength",
+                    info="Advanced workflow only"
+                )
+                
+                cfg_scale = gr.Slider(
+                    minimum=1.0,
+                    maximum=20.0,
+                    value=7.5,
+                    step=0.5,
+                    label="CFG Scale",
+                    info="Prompt adherence"
+                )
+                
+                steps = gr.Slider(
+                    minimum=10,
+                    maximum=50,
+                    value=30,
+                    step=5,
+                    label="Steps",
+                    info="More = better quality but slower"
+                )
+                
+                resolution = gr.Dropdown(
+                    choices=["1024x1024", "768x768", "512x512"],
+                    value="1024x1024",
+                    label="Resolution"
+                )
+            
+            generate_btn = gr.Button(
+                "🚀 Generate",
+                variant="primary",
+                size="lg"
             )
-            
-            gr.Markdown("### ⚙️ Settings")
-            
-            ipadapter_weight = gr.Slider(
-                minimum=0.0,
-                maximum=1.0,
-                value=0.9,
-                step=0.05,
-                label="IP-Adapter Strength (higher = more identity preservation)"
-            )
-            
-            controlnet_strength = gr.Slider(
-                minimum=0.0,
-                maximum=1.0,
-                value=0.35,
-                step=0.05,
-                label="ControlNet Strength (advanced workflow only)"
-            )
-            
-            cfg_scale = gr.Slider(
-                minimum=1.0,
-                maximum=20.0,
-                value=7.5,
-                step=0.5,
-                label="CFG Scale"
-            )
-            
-            steps = gr.Slider(
-                minimum=10,
-                maximum=50,
-                value=30,
-                step=5,
-                label="Sampling Steps"
-            )
-            
-            resolution = gr.Dropdown(
-                choices=["1024x1024", "768x768", "512x512"],
-                value="1024x1024",
-                label="Resolution"
-            )
-            
-            generate_btn = gr.Button("Generate", variant="primary", size="lg")
             
             status_text = gr.Textbox(
                 label="Status",
                 interactive=False,
-                value="Ready to generate"
+                value="Initializing...",
+                lines=2
             )
         
         with gr.Column(scale=1):
@@ -266,14 +365,29 @@ with gr.Blocks(title="Product Photography Generator", theme=gr.themes.Soft()) as
             output_image = gr.Image(
                 label="Generated Image",
                 type="pil",
-                height=500
+                height=500,
+                show_download_button=True
             )
             
+            gr.Markdown("### 💡 Example Prompts")
             gr.Examples(
-                examples=[[EXAMPLE_PROMPTS[0]], [EXAMPLE_PROMPTS[1]], [EXAMPLE_PROMPTS[2]]],
+                examples=[
+                    [EXAMPLE_PROMPTS[0]],
+                    [EXAMPLE_PROMPTS[1]],
+                    [EXAMPLE_PROMPTS[2]]
+                ],
                 inputs=prompt,
-                label="Example Prompts"
+                label=""
             )
+    
+    gr.Markdown("""
+    ---
+    **Tips:**
+    - Use **Basic** mode for faster generation with strong product identity
+    - Use **Advanced** mode for more control over layout and composition
+    - Higher IP-Adapter weight = product looks more like the original
+    - Adjust CFG scale if the result doesn't match your prompt
+    """)
     
     # Event handlers
     generate_btn.click(
@@ -299,5 +413,12 @@ with gr.Blocks(title="Product Photography Generator", theme=gr.themes.Soft()) as
 
 
 if __name__ == "__main__":
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False)
-
+    print(f"Starting Gradio app on port {GRADIO_PORT}...")
+    print(f"ComfyUI server: {COMFYUI_SERVER}")
+    
+    app.launch(
+        server_name="0.0.0.0",
+        server_port=GRADIO_PORT,
+        share=False,
+        show_error=True
+    )

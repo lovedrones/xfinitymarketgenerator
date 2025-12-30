@@ -86,7 +86,7 @@ class ComfyUIClient:
         else:
             raise Exception(f"Error downloading image: {response.status_code}")
     
-    def wait_for_completion(self, prompt_id: str, timeout: int = 300, check_interval: float = 1.0) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def wait_for_completion(self, prompt_id: str, timeout: int = 300, check_interval: float = 1.0, progress_callback=None) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
         Wait for a prompt to complete
         
@@ -94,11 +94,13 @@ class ComfyUIClient:
             prompt_id: Prompt ID
             timeout: Maximum time to wait in seconds
             check_interval: Time between checks in seconds
+            progress_callback: Optional callback function(progress, message)
             
         Returns:
             Tuple of (success, history_entry)
         """
         start_time = time.time()
+        last_progress = 0
         
         while time.time() - start_time < timeout:
             history = self.get_history(prompt_id)
@@ -106,21 +108,43 @@ class ComfyUIClient:
             if history:
                 # Check if completed
                 if len(history.get('outputs', {})) > 0:
+                    if progress_callback:
+                        progress_callback(1.0, "Complete!")
                     return True, history
+                    
                 # Check if there was an error
                 if 'status' in history and history['status'].get('completed', False):
                     if history['status'].get('success', True):
                         return True, history
                     else:
                         return False, history
+                
+                # Update progress based on time elapsed
+                elapsed = time.time() - start_time
+                estimated_progress = min(0.9, elapsed / 60)  # Assume ~60s for generation
+                
+                if progress_callback and estimated_progress > last_progress:
+                    last_progress = estimated_progress
+                    progress_callback(estimated_progress, f"Generating... ({int(elapsed)}s)")
             
             time.sleep(check_interval)
         
         return False, None
     
+    def get_queue_status(self) -> Dict[str, Any]:
+        """Get current queue status"""
+        try:
+            response = requests.get(self._get_url("queue"), timeout=5)
+            if response.status_code == 200:
+                return response.json()
+        except:
+            pass
+        return {"queue_running": [], "queue_pending": []}
+    
     def generate_image(self, workflow: Dict[str, Any], 
                       prompt: str,
                       negative_prompt: str = "",
+                      progress_callback=None,
                       **kwargs) -> Image.Image:
         """
         Generate an image from a workflow
@@ -129,6 +153,7 @@ class ComfyUIClient:
             workflow: Workflow dictionary (API format)
             prompt: Positive prompt
             negative_prompt: Negative prompt
+            progress_callback: Optional callback function(progress, message)
             **kwargs: Additional settings
             
         Returns:
@@ -137,11 +162,20 @@ class ComfyUIClient:
         # Queue the prompt
         prompt_id = self.queue_prompt(workflow)
         
-        # Wait for completion
-        success, history = self.wait_for_completion(prompt_id)
+        if progress_callback:
+            progress_callback(0.1, "Queued for generation...")
+        
+        # Wait for completion with progress updates
+        success, history = self.wait_for_completion(
+            prompt_id,
+            progress_callback=progress_callback
+        )
         
         if not success:
             raise Exception(f"Generation failed: {history}")
+        
+        if progress_callback:
+            progress_callback(0.95, "Downloading result...")
         
         # Get the output image
         outputs = history.get('outputs', {})

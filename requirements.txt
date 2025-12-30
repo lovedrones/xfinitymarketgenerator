@@ -1,23 +1,19 @@
-# Core dependencies
+# Gradio Web Interface
 gradio>=4.0.0
+
+# Image Processing
 pillow>=10.0.0
-requests>=2.31.0
-huggingface-hub>=0.20.0
-
-# ComfyUI dependencies (if running ComfyUI backend)
-torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.35.0
-diffusers>=0.24.0
-accelerate>=0.25.0
-
-# Image processing
 opencv-python-headless>=4.8.0
 numpy>=1.24.0
 
-# Background removal
-rembg[new]>=2.0.0
+# HTTP Client
+requests>=2.31.0
+
+# HuggingFace Model Hub
+huggingface-hub>=0.20.0
+
+# Background Removal
+rembg>=2.0.50
 
 # Utilities
 tqdm>=4.66.0
-

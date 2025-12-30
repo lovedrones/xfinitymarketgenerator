@@ -9,12 +9,25 @@ venv/
 ENV/
 .venv
 
-# ComfyUI
-models/
-input/
-output/
+# ComfyUI runtime data (not the config)
+models/checkpoints/*.safetensors
+models/controlnet/*.safetensors
+models/ipadapter/*.safetensors
+models/clip_vision/*.safetensors
+models/loras/
+models/vae/
+input/*.png
+input/*.jpg
+input/*.jpeg
+input/*.webp
+output/*.png
+output/*.jpg
 temp/
 *.log
+hf_cache/
+
+# Keep workflow files
+!workflows/*.json
 
 # IDE
 .vscode/
@@ -32,3 +45,7 @@ flagged/
 # Temporary files
 *.tmp
 *.bak
+
+# User data
+user/__manager/cache/
+user/default/ComfyUI-Manager/cache/
